@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -26,13 +27,22 @@ func main() {
 }
 
 func run(ctx context.Context) error {
+	var ifaceName string
+	flag.StringVar(&ifaceName, "interface", "lo", "name of the network interface")
+	flag.Parse()
+
+	iface, err := net.InterfaceByName(ifaceName)
+	if err != nil {
+		return fmt.Errorf("lookup network interface %q: %s", ifaceName, err)
+	}
+
 	var bpfObjects bpfObjects
 
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	bpfObjectFile := path.Join(filepath.Dir(executable), "bootstrap.bpf.o")
+	bpfObjectFile := path.Join(filepath.Dir(executable), "xdp.bpf.o")
 
 	spec, err := ebpf.LoadCollectionSpec(bpfObjectFile)
 	if err != nil {
@@ -65,17 +75,15 @@ func run(ctx context.Context) error {
 					continue
 				}
 
-				printRecord(record.RawSample)
+				printEvent(record.RawSample)
 			}
 		}
 	}()
 
-	bpfObjects.ProcessExecLink, err = link.Tracepoint("sched", "sched_process_exec", bpfObjects.ProcessExecProg, nil)
-	if err != nil {
-		return err
-	}
-
-	bpfObjects.ProcessExitLink, err = link.Tracepoint("sched", "sched_process_exit", bpfObjects.ProcessExitProg, nil)
+	bpfObjects.XDPLink, err = link.AttachXDP(link.XDPOptions{
+		Program:   bpfObjects.XDPProg,
+		Interface: iface.Index,
+	})
 	if err != nil {
 		return err
 	}
@@ -85,14 +93,12 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func printRecord(raw []byte) {
+func printEvent(raw []byte) {
 	offset := 0
-	pid := int(binary.LittleEndian.Uint32(raw[offset : offset+4]))
+	srcIP := net.IP(raw[offset : offset+4])
 	offset += 4
-	ppid := int(binary.LittleEndian.Uint32(raw[offset : offset+4]))
-	offset += 4
-
-	fmt.Printf("%d\t%d\n", pid, ppid)
+	dstIP := net.IP(raw[offset : offset+4])
+	fmt.Printf("ip_src:%v, ip_dst:%v\n", srcIP.To4().String(), dstIP.To4().String())
 }
 
 var onlyOneSignalHandler = make(chan struct{})
@@ -130,26 +136,22 @@ func (o *bpfObjects) Close() error {
 }
 
 type bpfPrograms struct {
-	ProcessExecProg *ebpf.Program `ebpf:"handle_exec"`
-	ProcessExitProg *ebpf.Program `ebpf:"handle_exit"`
+	XDPProg *ebpf.Program `ebpf:"xdp_prog_func"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return bpfClose(
-		p.ProcessExecProg,
-		p.ProcessExitProg,
+		p.XDPProg,
 	)
 }
 
 type bpfLinks struct {
-	ProcessExecLink link.Link
-	ProcessExitLink link.Link
+	XDPLink link.Link
 }
 
 func (l *bpfLinks) Close() error {
 	return bpfClose(
-		l.ProcessExecLink,
-		l.ProcessExitLink,
+		l.XDPLink,
 	)
 }
 

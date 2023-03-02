@@ -26,4 +26,5 @@ jobs:
 
     - name: Run App
       run: |
-        sudo timeout --preserve-status 5s ./src/bootstrap
+        ip a
+        sudo timeout --preserve-status 5s ./src/xdp --interface=eth0
