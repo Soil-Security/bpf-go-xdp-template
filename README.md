@@ -1,7 +1,8 @@
 # bpf-xdp-go-template
 
 A GitHub template repository with the scaffolding for a XDP program developed with [libbpf/libbpf] and BPF CO-RE.
-The loader is written in Go and leverages the [cilium/ebpf] library.
+The loader is written in Go and is using the [cilium/ebpf] library to manage BPF objects, i.e. load BPF programs,
+access BPF maps, etc.
 
 ## Usage
 
@@ -9,37 +10,35 @@ Create a new repository from this template by clicking the **Use this template**
 Once it's done, clone and change current directory to the cloned repository:
 
 ```
-git clone https://github.com/$owner/$repo.git
-cd $repo
-git submodule update --init --recursive
+$ git clone https://github.com/$owner/$repo.git
+$ cd $repo
+$ git submodule update --init --recursive
 ```
 
 Compile BPF program and Go loader:
 
 ```
-make -C src
+$ make -C src
 ```
 
 Run the application:
 
-```
-sudo ./src/xdp --interface=eth0
+``` console
+# ./src/xdp --interface=eth0
 ```
 
 If everything is fine, you can start modifying the scaffolding to adjust the XDP program to your needs.
+To verify that the XDP program was attached to the `eth0` interface inspect the output of the `ip address show` command:
 
-> You can verify that the XDP program was attached to the `eth0` interface
-> by inspecting the output of the `ip address show` command:
->
-> ``` console
-> $ ip a show dev eth0
-> 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric/id:46 qdisc fq_codel state UP group default qlen 1000
->     link/ether 00:0c:29:e1:bb:04 brd ff:ff:ff:ff:ff:ff
->     inet 192.168.10.130/24 brd 192.168.10.255 scope global dynamic noprefixroute eth0
->        valid_lft 1417sec preferred_lft 1417sec
->     inet6 fe80::20c:29ff:fee1:bb04/64 scope link noprefixroute
->        valid_lft forever preferred_lft forever
-> ```
+``` console
+$ ip a show dev eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric/id:46 qdisc fq_codel state UP group default qlen 1000
+    link/ether 00:0c:29:e1:bb:04 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.10.130/24 brd 192.168.10.255 scope global dynamic noprefixroute eth0
+       valid_lft 1417sec preferred_lft 1417sec
+    inet6 fe80::20c:29ff:fee1:bb04/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+```
 
 ---
 
