@@ -1,6 +1,6 @@
 # bpf-xdp-go-template
 
-A GitHub template repository with the scaffolding for a XDP program developed with [libbpf/libbpf] and BPF CO-RE.
+A GitHub template repository with the scaffolding for a XDP program developed with [libbpf/libbpf].
 The loader is written in Go and is using the [cilium/ebpf] library to manage BPF objects, i.e. load BPF programs,
 access BPF maps, etc.
 
@@ -42,13 +42,10 @@ $ ip a show dev eth0
 ```
 
 Notice that there is the `xdpgeneric/id:21` entry, which indicates that the program was indeed attached,
-and its id is `21`.
-
-> **Note**  
-> XDP has three *operation modes* (native, offloaded, and generic) to accommodate easily testing functions,
-> custom hardware from vendors, and commonly built kernels without custom hardware. The `xdpgeneric/id:21`
-> entry indicates the generic operation mode, which is provided as a test-mode for developers who want to
-> write and run XDP programs without having the capabilities of native or offloaded XDP.
+and its id is `21`. XDP has three operation modes (native, offloaded, and generic) to accommodate easily
+testing functions, custom hardware from vendors, and commonly built kernels without custom hardware.
+The `xdpgeneric/id:21` entry indicates the generic operation mode, which is provided as a test-mode
+for developers who want to write and run XDP programs without having the capabilities of native or offloaded XDP.
 
 You can further inspect the program with the `btftool` command:
 
@@ -61,6 +58,25 @@ You can further inspect the program with the `btftool` command:
 ```
 
 When you hit CTRL+C keys to stop the loader process, the XDP program will be detached from the `eth0` interface.
+
+The `ip` command, available in iproute2, has the ability to act as a frontend to load XDP programs compiled
+into an ELF file. Because loading an XDP program can be expressed as a configuration of a network interface,
+the loader is implemented as part of the `ip link` command (man 8 ip-link), which is the one that does network
+device configuration.
+
+The syntax to load the XDP program is simple:
+
+```
+# ip link set dev eth0 xdp obj src/xdp.bpf.o program xdp_prog_func verbose
+```
+
+To detach the `xdp_prog_func` program and turn off XDP for the device:
+
+```
+# ip link set dev eth0 xdp off
+```
+
+---
 
 ``` console
 # bpftool prog dump xlated name xdp_prog_func
