@@ -28,11 +28,12 @@ Run the application:
 ```
 
 If everything is fine, you can start modifying the scaffolding to adjust the XDP program to your needs.
-To verify that the XDP program was attached to the `eth0` interface inspect the output of the `ip address show` command:
+To verify that the `xdp_prog_func` XDP program was attached to the `eth0` interface inspect the output
+of the `ip address show` command:
 
 ``` console
 $ ip a show dev eth0
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric/id:46 qdisc fq_codel state UP group default qlen 1000
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 xdpgeneric/id:21 qdisc fq_codel state UP group default qlen 1000
     link/ether 00:0c:29:e1:bb:04 brd ff:ff:ff:ff:ff:ff
     inet 192.168.10.130/24 brd 192.168.10.255 scope global dynamic noprefixroute eth0
        valid_lft 1417sec preferred_lft 1417sec
@@ -40,7 +41,16 @@ $ ip a show dev eth0
        valid_lft forever preferred_lft forever
 ```
 
----
+Notice that there is the `xdpgeneric/id:21` entry, which indicates that the program was indeed attached,
+and its id is `21`. You can further inspect the program with the `btftool` command:
+
+``` console
+# bpftool prog show id 21
+21: xdp  name xdp_prog_func  tag 50fcfa8b9d387625  gpl
+        loaded_at 2023-03-03T10:10:37+0100  uid 0
+        xlated 208B  jited 123B  memlock 4096B  map_ids 3
+        btf_id 147
+```
 
 ``` console
 # bpftool prog dump xlated name xdp_prog_func
