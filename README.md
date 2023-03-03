@@ -42,7 +42,15 @@ $ ip a show dev eth0
 ```
 
 Notice that there is the `xdpgeneric/id:21` entry, which indicates that the program was indeed attached,
-and its id is `21`. You can further inspect the program with the `btftool` command:
+and its id is `21`.
+
+> **Note**  
+> XDP has three *operation modes* (native, offloaded, and generic) to accommodate easily testing functions,
+> custom hardware from vendors, and commonly built kernels without custom hardware. The `xdpgeneric/id:21`
+> entry indicates the generic operation mode, which is provided as a test-mode for developers who want to
+> write and run XDP programs without having the capabilities of native or offloaded XDP.
+
+You can further inspect the program with the `btftool` command:
 
 ``` console
 # bpftool prog show id 21
@@ -51,6 +59,8 @@ and its id is `21`. You can further inspect the program with the `btftool` comma
         xlated 208B  jited 123B  memlock 4096B  map_ids 3
         btf_id 147
 ```
+
+When you hit CTRL+C keys to stop the loader process, the XDP program will be detached from the `eth0` interface.
 
 ``` console
 # bpftool prog dump xlated name xdp_prog_func
