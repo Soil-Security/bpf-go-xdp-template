@@ -21,7 +21,7 @@ Compile BPF program and Go loader:
 $ make -C src
 ```
 
-Run the application:
+Run the loader program, which will attach the XDP program to the `eth0` interface.
 
 ``` console
 # ./src/xdp --interface=eth0
@@ -47,7 +47,35 @@ testing functions, custom hardware from vendors, and commonly built kernels with
 The `xdpgeneric/id:21` entry indicates the generic operation mode, which is provided as a test-mode
 for developers who want to write and run XDP programs without having the capabilities of native or offloaded XDP.
 
-You can further inspect the program with the `btftool` command:
+When you hit CTRL+C keys to stop the loader process, the XDP program will be detached from the `eth0` interface.
+
+
+## Using Alternative Loaders
+
+The `ip` command, available in iproute2, has the ability to act as a frontend to load XDP programs compiled
+into an ELF file. Because loading an XDP program can be expressed as a configuration of a network interface,
+the loader is implemented as part of the `ip link` command (man 8 ip-link), which is the one that does network
+device configuration.
+
+The syntax to load the XDP program is simple.
+
+```
+# ip link set dev eth0 xdp obj src/xdp.bpf.o program xdp_prog_func verbose
+```
+
+To detach the `xdp_prog_func` program and turn off XDP for the device.
+
+```
+# ip link set dev eth0 xdp off
+```
+
+Use bpftool to load and attche XDP programs.
+
+```
+# bpftool prog load src/xdp.bpf.o /sys/fs/bpf/xdp_prog_func
+```
+
+You can further inspect the program with the `btftool` command.
 
 ``` console
 # bpftool prog show id 21
@@ -57,26 +85,75 @@ You can further inspect the program with the `btftool` command:
         btf_id 147
 ```
 
-When you hit CTRL+C keys to stop the loader process, the XDP program will be detached from the `eth0` interface.
-
-The `ip` command, available in iproute2, has the ability to act as a frontend to load XDP programs compiled
-into an ELF file. Because loading an XDP program can be expressed as a configuration of a network interface,
-the loader is implemented as part of the `ip link` command (man 8 ip-link), which is the one that does network
-device configuration.
-
-The syntax to load the XDP program is simple:
-
 ```
-# ip link set dev eth0 xdp obj src/xdp.bpf.o program xdp_prog_func verbose
+# bpftool net attach xdp id 21 dev eth0
 ```
 
-To detach the `xdp_prog_func` program and turn off XDP for the device:
+``` console
+# bpftool net list
+xdp:
+eth0(2) generic id 21
+
+tc:
+
+flow_dissector:
+```
 
 ```
-# ip link set dev eth0 xdp off
+# bpftool net detach xdp dev eth0
+```
+```
+# rm /sys/fs/bpf/xdp_prog_func
 ```
 
----
+## Inspecting BPF Bytecode
+
+The `file` utility shows that `xdp.bpf.o` is an ELF (Executable and Linkable Format) file, containing eBPF
+code, for a 64-bit platform with LSB (lowest significant bit) architecture.
+
+``` console
+$ file src/xdp.bpf.o
+src/xdp.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped
+```
+
+You can further inspect this object with `llvm-objdump` to see the eBPF instructions.
+
+``` console
+$ llvm-objdump -d src/xdp.bpf.o
+
+src/xdp.bpf.o:  file format elf64-bpf
+
+Disassembly of section xdp:
+
+0000000000000000 <xdp_prog_func>:
+       0:       61 12 04 00 00 00 00 00 r2 = *(u32 *)(r1 + 4)
+       1:       61 11 00 00 00 00 00 00 r1 = *(u32 *)(r1 + 0)
+       2:       bf 13 00 00 00 00 00 00 r3 = r1
+       3:       07 03 00 00 0e 00 00 00 r3 += 14
+       4:       2d 23 13 00 00 00 00 00 if r3 > r2 goto +19 <LBB0_5>
+       5:       69 13 0c 00 00 00 00 00 r3 = *(u16 *)(r1 + 12)
+       6:       55 03 11 00 08 00 00 00 if r3 != 8 goto +17 <LBB0_5>
+       7:       bf 13 00 00 00 00 00 00 r3 = r1
+       8:       07 03 00 00 22 00 00 00 r3 += 34
+       9:       2d 23 0e 00 00 00 00 00 if r3 > r2 goto +14 <LBB0_5>
+      10:       07 01 00 00 0e 00 00 00 r1 += 14
+      11:       61 17 10 00 00 00 00 00 r7 = *(u32 *)(r1 + 16)
+      12:       61 16 0c 00 00 00 00 00 r6 = *(u32 *)(r1 + 12)
+      13:       18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 r1 = 0 ll
+      15:       b7 02 00 00 08 00 00 00 r2 = 8
+      16:       b7 03 00 00 00 00 00 00 r3 = 0
+      17:       85 00 00 00 83 00 00 00 call 131
+      18:       15 00 05 00 00 00 00 00 if r0 == 0 goto +5 <LBB0_5>
+      19:       63 70 04 00 00 00 00 00 *(u32 *)(r0 + 4) = r7
+      20:       63 60 00 00 00 00 00 00 *(u32 *)(r0 + 0) = r6
+      21:       bf 01 00 00 00 00 00 00 r1 = r0
+      22:       b7 02 00 00 00 00 00 00 r2 = 0
+      23:       85 00 00 00 84 00 00 00 call 132
+
+00000000000000c0 <LBB0_5>:
+      24:       b7 00 00 00 02 00 00 00 r0 = 2
+      25:       95 00 00 00 00 00 00 00 exit
+```
 
 ``` console
 # bpftool prog dump xlated name xdp_prog_func
