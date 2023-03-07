@@ -10,6 +10,7 @@
 struct event {
   __u32 ip_src;
   __u32 ip_dst;
+  __u8 ip_protocol;
 };
 
 #endif /* __XDP_H */

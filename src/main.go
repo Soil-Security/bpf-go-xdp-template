@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf"
@@ -51,7 +52,11 @@ func run(ctx context.Context) error {
 
 	err = spec.LoadAndAssign(&bpfObjects, &ebpf.CollectionOptions{})
 	if err != nil {
-		return err
+		var verr *ebpf.VerifierError
+		if errors.As(err, &verr) {
+			fmt.Fprintln(os.Stderr, strings.Join(verr.Log, "\n"))
+		}
+		return fmt.Errorf("failed loading and assigning BPF objects: %w", err)
 	}
 	defer bpfObjects.Close()
 
@@ -98,7 +103,13 @@ func printEvent(raw []byte) {
 	srcIP := net.IP(raw[offset : offset+4])
 	offset += 4
 	dstIP := net.IP(raw[offset : offset+4])
-	fmt.Printf("ip_src:%v, ip_dst:%v\n", srcIP.To4().String(), dstIP.To4().String())
+	offset += 4
+	protocol := (int)(raw[offset])
+	offset++
+	fmt.Printf("ip_src:%v,ip_dst:%v,protocol:%v\n",
+		srcIP.To4().String(),
+		dstIP.To4().String(),
+		protocol)
 }
 
 var onlyOneSignalHandler = make(chan struct{})
