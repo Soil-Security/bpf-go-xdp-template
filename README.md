@@ -25,6 +25,13 @@ Run the loader program, which will attach the XDP program to the `eth0` interfac
 
 ``` console
 # ./src/xdp --interface=eth0
+Source          Destination             Protocol
+172.16.184.2:53 172.16.184.134:44240    UDP
+172.16.184.2:53 172.16.184.134:44240    UDP
+172.16.184.2:53 172.16.184.134:40356    UDP
+172.16.184.2:53 172.16.184.134:40356    UDP
+172.16.184.2:53 172.16.184.134:52815    UDP
+_
 ```
 
 If everything is fine, you can start modifying the scaffolding to adjust the XDP program to your needs.
@@ -52,7 +59,9 @@ When you hit CTRL+C keys to stop the loader process, the XDP program will be det
 
 ## Using Alternative Loaders
 
-The `ip` command, available in iproute2, has the ability to act as a frontend to load XDP programs compiled
+### Iproute2
+
+The `ip` command, available in [iproute2], has the ability to act as a frontend to load XDP programs compiled
 into an ELF file. Because loading an XDP program can be expressed as a configuration of a network interface,
 the loader is implemented as part of the `ip link` command (man 8 ip-link), which is the one that does network
 device configuration.
@@ -69,7 +78,9 @@ To detach the `xdp_prog_func` program and turn off XDP for the device.
 # ip link set dev eth0 xdp off
 ```
 
-Use bpftool to load and attche XDP programs.
+### bpftool
+
+Use bpftool to load and attach XDP programs.
 
 ```
 # bpftool prog load src/xdp.bpf.o /sys/fs/bpf/xdp_prog_func
@@ -121,84 +132,183 @@ You can further inspect this object with `llvm-objdump` to see the eBPF instruct
 ``` console
 $ llvm-objdump -d src/xdp.bpf.o
 
-src/xdp.bpf.o:  file format elf64-bpf
+src/xdp.bpf.o:	file format elf64-bpf
 
 Disassembly of section xdp:
 
 0000000000000000 <xdp_prog_func>:
-       0:       61 12 04 00 00 00 00 00 r2 = *(u32 *)(r1 + 4)
-       1:       61 11 00 00 00 00 00 00 r1 = *(u32 *)(r1 + 0)
-       2:       bf 13 00 00 00 00 00 00 r3 = r1
-       3:       07 03 00 00 0e 00 00 00 r3 += 14
-       4:       2d 23 13 00 00 00 00 00 if r3 > r2 goto +19 <LBB0_5>
-       5:       69 13 0c 00 00 00 00 00 r3 = *(u16 *)(r1 + 12)
-       6:       55 03 11 00 08 00 00 00 if r3 != 8 goto +17 <LBB0_5>
-       7:       bf 13 00 00 00 00 00 00 r3 = r1
-       8:       07 03 00 00 22 00 00 00 r3 += 34
-       9:       2d 23 0e 00 00 00 00 00 if r3 > r2 goto +14 <LBB0_5>
-      10:       07 01 00 00 0e 00 00 00 r1 += 14
-      11:       61 17 10 00 00 00 00 00 r7 = *(u32 *)(r1 + 16)
-      12:       61 16 0c 00 00 00 00 00 r6 = *(u32 *)(r1 + 12)
-      13:       18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 r1 = 0 ll
-      15:       b7 02 00 00 08 00 00 00 r2 = 8
-      16:       b7 03 00 00 00 00 00 00 r3 = 0
-      17:       85 00 00 00 83 00 00 00 call 131
-      18:       15 00 05 00 00 00 00 00 if r0 == 0 goto +5 <LBB0_5>
-      19:       63 70 04 00 00 00 00 00 *(u32 *)(r0 + 4) = r7
-      20:       63 60 00 00 00 00 00 00 *(u32 *)(r0 + 0) = r6
-      21:       bf 01 00 00 00 00 00 00 r1 = r0
-      22:       b7 02 00 00 00 00 00 00 r2 = 0
-      23:       85 00 00 00 84 00 00 00 call 132
+       0:	bf 16 00 00 00 00 00 00	r6 = r1
+       1:	18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00	r1 = 0 ll
+       3:	b7 02 00 00 0d 00 00 00	r2 = 13
+       4:	b7 03 00 00 00 00 00 00	r3 = 0
+       5:	85 00 00 00 83 00 00 00	call 131
+       6:	15 00 39 00 00 00 00 00	if r0 == 0 goto +57 <LBB0_8>
+       7:	61 63 04 00 00 00 00 00	r3 = *(u32 *)(r6 + 4)
+       8:	61 64 00 00 00 00 00 00	r4 = *(u32 *)(r6 + 0)
+       9:	bf 42 00 00 00 00 00 00	r2 = r4
+      10:	07 02 00 00 0e 00 00 00	r2 += 14
+      11:	2d 32 31 00 00 00 00 00	if r2 > r3 goto +49 <LBB0_7>
+      12:	69 41 0c 00 00 00 00 00	r1 = *(u16 *)(r4 + 12)
+      13:	55 01 2f 00 08 00 00 00	if r1 != 8 goto +47 <LBB0_7>
+      14:	bf 41 00 00 00 00 00 00	r1 = r4
+      15:	07 01 00 00 22 00 00 00	r1 += 34
+      16:	2d 31 2c 00 00 00 00 00	if r1 > r3 goto +44 <LBB0_7>
+      17:	71 25 09 00 00 00 00 00	r5 = *(u8 *)(r2 + 9)
+      18:	55 05 2a 00 11 00 00 00	if r5 != 17 goto +42 <LBB0_7>
+      19:	07 04 00 00 2a 00 00 00	r4 += 42
+      20:	2d 34 28 00 00 00 00 00	if r4 > r3 goto +40 <LBB0_7>
+      21:	61 23 0c 00 00 00 00 00	r3 = *(u32 *)(r2 + 12)
+      22:	bf 34 00 00 00 00 00 00	r4 = r3
+      23:	77 04 00 00 18 00 00 00	r4 >>= 24
+      24:	73 40 03 00 00 00 00 00	*(u8 *)(r0 + 3) = r4
+      25:	bf 34 00 00 00 00 00 00	r4 = r3
+      26:	77 04 00 00 10 00 00 00	r4 >>= 16
+      27:	73 40 02 00 00 00 00 00	*(u8 *)(r0 + 2) = r4
+      28:	73 30 00 00 00 00 00 00	*(u8 *)(r0 + 0) = r3
+      29:	77 03 00 00 08 00 00 00	r3 >>= 8
+      30:	73 30 01 00 00 00 00 00	*(u8 *)(r0 + 1) = r3
+      31:	61 23 10 00 00 00 00 00	r3 = *(u32 *)(r2 + 16)
+      32:	bf 34 00 00 00 00 00 00	r4 = r3
+      33:	77 04 00 00 18 00 00 00	r4 >>= 24
+      34:	73 40 07 00 00 00 00 00	*(u8 *)(r0 + 7) = r4
+      35:	bf 34 00 00 00 00 00 00	r4 = r3
+      36:	77 04 00 00 10 00 00 00	r4 >>= 16
+      37:	73 40 06 00 00 00 00 00	*(u8 *)(r0 + 6) = r4
+      38:	73 30 04 00 00 00 00 00	*(u8 *)(r0 + 4) = r3
+      39:	77 03 00 00 08 00 00 00	r3 >>= 8
+      40:	73 30 05 00 00 00 00 00	*(u8 *)(r0 + 5) = r3
+      41:	71 22 09 00 00 00 00 00	r2 = *(u8 *)(r2 + 9)
+      42:	73 20 08 00 00 00 00 00	*(u8 *)(r0 + 8) = r2
+      43:	69 12 00 00 00 00 00 00	r2 = *(u16 *)(r1 + 0)
+      44:	bf 23 00 00 00 00 00 00	r3 = r2
+      45:	dc 03 00 00 10 00 00 00	r3 = be16 r3
+      46:	73 30 09 00 00 00 00 00	*(u8 *)(r0 + 9) = r3
+      47:	dc 02 00 00 40 00 00 00	r2 = be64 r2
+      48:	77 02 00 00 38 00 00 00	r2 >>= 56
+      49:	73 20 0a 00 00 00 00 00	*(u8 *)(r0 + 10) = r2
+      50:	69 11 02 00 00 00 00 00	r1 = *(u16 *)(r1 + 2)
+      51:	bf 12 00 00 00 00 00 00	r2 = r1
+      52:	dc 02 00 00 10 00 00 00	r2 = be16 r2
+      53:	73 20 0b 00 00 00 00 00	*(u8 *)(r0 + 11) = r2
+      54:	dc 01 00 00 40 00 00 00	r1 = be64 r1
+      55:	77 01 00 00 38 00 00 00	r1 >>= 56
+      56:	73 10 0c 00 00 00 00 00	*(u8 *)(r0 + 12) = r1
+      57:	bf 01 00 00 00 00 00 00	r1 = r0
+      58:	b7 02 00 00 00 00 00 00	r2 = 0
+      59:	85 00 00 00 84 00 00 00	call 132
+      60:	05 00 03 00 00 00 00 00	goto +3 <LBB0_8>
 
-00000000000000c0 <LBB0_5>:
-      24:       b7 00 00 00 02 00 00 00 r0 = 2
-      25:       95 00 00 00 00 00 00 00 exit
+00000000000001e8 <LBB0_7>:
+      61:	bf 01 00 00 00 00 00 00	r1 = r0
+      62:	b7 02 00 00 00 00 00 00	r2 = 0
+      63:	85 00 00 00 85 00 00 00	call 133
+
+0000000000000200 <LBB0_8>:
+      64:	b7 00 00 00 02 00 00 00	r0 = 2
+      65:	95 00 00 00 00 00 00 00	exit
 ```
 
 ``` console
-# bpftool prog dump xlated name xdp_prog_func
+# bpftool prog dump xlated name xdp_prog_func linum
 int xdp_prog_func(struct xdp_md * ctx):
-; void *data_end = (void *)(long)ctx->data_end;
-   0: (79) r2 = *(u64 *)(r1 +8)
-; void *data = (void *)(long)ctx->data;
-   1: (79) r1 = *(u64 *)(r1 +0)
-; if ((void *)(eth + 1) > data_end) {
-   2: (bf) r3 = r1
-   3: (07) r3 += 14
-; if ((void *)(eth + 1) > data_end) {
-   4: (2d) if r3 > r2 goto pc+19
-; if (eth->h_proto != bpf_htons(ETH_P_IP)) {
-   5: (69) r3 = *(u16 *)(r1 +12)
-; if (eth->h_proto != bpf_htons(ETH_P_IP)) {
-   6: (55) if r3 != 0x8 goto pc+17
-   7: (bf) r3 = r1
-   8: (07) r3 += 34
-   9: (2d) if r3 > r2 goto pc+14
-  10: (07) r1 += 14
-; *ip_dst_addr = (__u32)(ip->daddr);
-  11: (61) r7 = *(u32 *)(r1 +16)
-; *ip_src_addr = (__u32)(ip->saddr);
-  12: (61) r6 = *(u32 *)(r1 +12)
-; event = bpf_ringbuf_reserve(&events, sizeof(*event), 0);
-  13: (18) r1 = map[id:68]
-  15: (b7) r2 = 8
-  16: (b7) r3 = 0
-  17: (85) call bpf_ringbuf_reserve#231472
-; if (!event) {
-  18: (15) if r0 == 0x0 goto pc+5
-; event->ip_dst = ip_dst;
-  19: (63) *(u32 *)(r0 +4) = r7
-; event->ip_src = ip_src;
-  20: (63) *(u32 *)(r0 +0) = r6
-; bpf_ringbuf_submit(event, 0);
-  21: (bf) r1 = r0
-  22: (b7) r2 = 0
-  23: (85) call bpf_ringbuf_submit#232416
-; return XDP_PASS;
-  24: (b7) r0 = 2
-  25: (95) exit
+; int xdp_prog_func(struct xdp_md *ctx) { [file:./src/xdp.bpf.c line_num:19 line_col:0]
+   0: (bf) r6 = r1
+; event = (struct event *)bpf_ringbuf_reserve(&events, sizeof(struct event), 0); [file:./src/xdp.bpf.c line_num:22 line_col:27]
+   1: (18) r1 = map[id:68]
+   3: (b7) r2 = 13
+   4: (b7) r3 = 0
+   5: (85) call bpf_ringbuf_reserve#231472
+; if (!event) { [file:./src/xdp.bpf.c line_num:23 line_col:7]
+   6: (15) if r0 == 0x0 goto pc+57
+; void *data_end = (void *)(long)ctx->data_end; [file:./src/xdp.bpf.c line_num:40 line_col:39]
+   7: (79) r3 = *(u64 *)(r6 +8)
+; void *data = (void *)(long)ctx->data; [file:./src/xdp.bpf.c line_num:39 line_col:35]
+   8: (79) r4 = *(u64 *)(r6 +0)
+; if (data + sizeof(struct ethhdr) > data_end) { [file:./src/xdp.bpf.c line_num:43 line_col:12]
+   9: (bf) r2 = r4
+  10: (07) r2 += 14
+; if (data + sizeof(struct ethhdr) > data_end) { [file:./src/xdp.bpf.c line_num:43 line_col:7]
+  11: (2d) if r2 > r3 goto pc+49
+; if (eth->h_proto != bpf_htons(ETH_P_IP)) { [file:./src/xdp.bpf.c line_num:48 line_col:12]
+  12: (69) r1 = *(u16 *)(r4 +12)
+; if (eth->h_proto != bpf_htons(ETH_P_IP)) { [file:./src/xdp.bpf.c line_num:48 line_col:7]
+  13: (55) if r1 != 0x8 goto pc+47
+; if (data + sizeof(struct iphdr) > data_end) { [file:./src/xdp.bpf.c line_num:53 line_col:12]
+  14: (bf) r1 = r4
+  15: (07) r1 += 34
+; if (data + sizeof(struct iphdr) > data_end) { [file:./src/xdp.bpf.c line_num:53 line_col:7]
+  16: (2d) if r1 > r3 goto pc+44
+; if (ip->protocol != IPPROTO_UDP) { [file:./src/xdp.bpf.c line_num:58 line_col:11]
+  17: (71) r5 = *(u8 *)(r2 +9)
+; if (ip->protocol != IPPROTO_UDP) { [file:./src/xdp.bpf.c line_num:58 line_col:7]
+  18: (55) if r5 != 0x11 goto pc+42
+  19: (07) r4 += 42
+  20: (2d) if r4 > r3 goto pc+40
+; e->ip_src = ip->saddr; [file:./src/xdp.bpf.c line_num:68 line_col:19]
+  21: (61) r3 = *(u32 *)(r2 +12)
+; e->ip_src = ip->saddr; [file:./src/xdp.bpf.c line_num:68 line_col:13]
+  22: (bf) r4 = r3
+  23: (77) r4 >>= 24
+  24: (73) *(u8 *)(r0 +3) = r4
+  25: (bf) r4 = r3
+  26: (77) r4 >>= 16
+  27: (73) *(u8 *)(r0 +2) = r4
+  28: (73) *(u8 *)(r0 +0) = r3
+  29: (77) r3 >>= 8
+  30: (73) *(u8 *)(r0 +1) = r3
+; e->ip_dst = ip->daddr; [file:./src/xdp.bpf.c line_num:69 line_col:19]
+  31: (61) r3 = *(u32 *)(r2 +16)
+; e->ip_dst = ip->daddr; [file:./src/xdp.bpf.c line_num:69 line_col:13]
+  32: (bf) r4 = r3
+  33: (77) r4 >>= 24
+  34: (73) *(u8 *)(r0 +7) = r4
+  35: (bf) r4 = r3
+  36: (77) r4 >>= 16
+  37: (73) *(u8 *)(r0 +6) = r4
+  38: (73) *(u8 *)(r0 +4) = r3
+  39: (77) r3 >>= 8
+  40: (73) *(u8 *)(r0 +5) = r3
+; e->ip_protocol = ip->protocol; [file:./src/xdp.bpf.c line_num:70 line_col:24]
+  41: (71) r2 = *(u8 *)(r2 +9)
+; e->ip_protocol = ip->protocol; [file:./src/xdp.bpf.c line_num:70 line_col:18]
+  42: (73) *(u8 *)(r0 +8) = r2
+; e->udp_src = bpf_ntohs(udp->source); [file:./src/xdp.bpf.c line_num:71 line_col:16]
+  43: (69) r2 = *(u16 *)(r1 +0)
+  44: (bf) r3 = r2
+  45: (dc) r3 = be16 r3
+; e->udp_src = bpf_ntohs(udp->source); [file:./src/xdp.bpf.c line_num:71 line_col:14]
+  46: (73) *(u8 *)(r0 +9) = r3
+; e->udp_src = bpf_ntohs(udp->source); [file:./src/xdp.bpf.c line_num:71 line_col:16]
+  47: (dc) r2 = be64 r2
+; e->udp_src = bpf_ntohs(udp->source); [file:./src/xdp.bpf.c line_num:71 line_col:14]
+  48: (77) r2 >>= 56
+  49: (73) *(u8 *)(r0 +10) = r2
+; e->udp_dst = bpf_ntohs(udp->dest); [file:./src/xdp.bpf.c line_num:72 line_col:16]
+  50: (69) r1 = *(u16 *)(r1 +2)
+  51: (bf) r2 = r1
+  52: (dc) r2 = be16 r2
+; e->udp_dst = bpf_ntohs(udp->dest); [file:./src/xdp.bpf.c line_num:72 line_col:14]
+  53: (73) *(u8 *)(r0 +11) = r2
+; e->udp_dst = bpf_ntohs(udp->dest); [file:./src/xdp.bpf.c line_num:72 line_col:16]
+  54: (dc) r1 = be64 r1
+; e->udp_dst = bpf_ntohs(udp->dest); [file:./src/xdp.bpf.c line_num:72 line_col:14]
+  55: (77) r1 >>= 56
+  56: (73) *(u8 *)(r0 +12) = r1
+; bpf_ringbuf_submit(event, 0); [file:./src/xdp.bpf.c line_num:32 line_col:3]
+  57: (bf) r1 = r0
+  58: (b7) r2 = 0
+  59: (85) call bpf_ringbuf_submit#232416
+  60: (05) goto pc+3
+; bpf_ringbuf_discard(event, 0); [file:./src/xdp.bpf.c line_num:28 line_col:5]
+  61: (bf) r1 = r0
+  62: (b7) r2 = 0
+  63: (85) call bpf_ringbuf_discard#232528
+; return XDP_PASS; [file:./src/xdp.bpf.c line_num:35 line_col:3]
+  64: (b7) r0 = 2
+  65: (95) exit
 ```
 
 [libbpf/libbpf]: https://github.com/libbpf/libbpf
 [libbpf/libbpf-bootstrap]: https://github.com/libbpf/libbpf-bootstrap
 [cilium/ebpf]: https://github.com/cilium/ebpf
+[iproute2]: https://wiki.linuxfoundation.org/networking/iproute2
