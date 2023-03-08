@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -66,6 +68,8 @@ func run(ctx context.Context) error {
 	}
 	defer ringbufReader.Close()
 
+	fmt.Println("Source\t\tDestination\t\tProtocol")
+
 	go func() {
 		for {
 			select {
@@ -106,10 +110,22 @@ func printEvent(raw []byte) {
 	offset += 4
 	protocol := (int)(raw[offset])
 	offset++
-	fmt.Printf("ip_src:%v,ip_dst:%v,protocol:%v\n",
-		srcIP.To4().String(),
-		dstIP.To4().String(),
-		protocol)
+	srcPort := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	offset += 2
+	dstPort := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	offset += 2
+
+	protocolStr := strconv.Itoa(protocol)
+	switch protocol {
+	case 17:
+		protocolStr = "UDP"
+	case 6:
+		protocolStr = "TCP"
+	}
+	fmt.Printf("%v:%d\t%v:%d\t%v\n",
+		srcIP.To4().String(), srcPort,
+		dstIP.To4().String(), dstPort,
+		protocolStr)
 }
 
 var onlyOneSignalHandler = make(chan struct{})

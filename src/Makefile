@@ -48,7 +48,7 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
 # Build BPF code
-xdp.bpf.o: xdp.bpf.c $(LIBBPF_OBJ) | $(OUTPUT)
+xdp.bpf.o: xdp.h xdp.bpf.c $(LIBBPF_OBJ) | $(OUTPUT)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c xdp.bpf.c -o $@
 	$(LLVM_STRIP) -g $@
 

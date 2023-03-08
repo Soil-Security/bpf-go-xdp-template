@@ -20,7 +20,7 @@ int xdp_prog_func(struct xdp_md *ctx) {
   struct event *event;
 
   event = (struct event *)bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
-  if (event == NULL) {
+  if (!event) {
     goto done;
   }
 
@@ -55,10 +55,21 @@ static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
   }
   data += sizeof(struct iphdr);
 
-  // Return the source IP address in network byte order.
+  if (ip->protocol != IPPROTO_UDP) {
+    return 0;
+  }
+
+  struct udphdr *udp = (struct udphdr *)data;
+  if (data + sizeof(struct udphdr) > data_end) {
+    return 0;
+  }
+  data += sizeof(struct udphdr);
+
   e->ip_src = ip->saddr;
   e->ip_dst = ip->daddr;
   e->ip_protocol = ip->protocol;
+  e->udp_src = bpf_ntohs(udp->source);
+  e->udp_dst = bpf_ntohs(udp->dest);
 
   return 1;
 }
