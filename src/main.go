@@ -52,15 +52,23 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	err = spec.LoadAndAssign(&bpfObjects, &ebpf.CollectionOptions{})
+	err = spec.LoadAndAssign(&bpfObjects, &ebpf.CollectionOptions{
+		Programs: ebpf.ProgramOptions{
+			// LogLevel: 0,
+			// LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
+			LogLevel: ebpf.LogLevelInstruction,
+			LogSize:  ebpf.DefaultVerifierLogSize,
+		},
+	})
 	if err != nil {
-		var verr *ebpf.VerifierError
-		if errors.As(err, &verr) {
-			fmt.Fprintln(os.Stderr, strings.Join(verr.Log, "\n"))
+		var verifierError *ebpf.VerifierError
+		if errors.As(err, &verifierError) {
+			fmt.Fprintln(os.Stderr, strings.Join(verifierError.Log, "\n"))
 		}
 		return fmt.Errorf("failed loading and assigning BPF objects: %w", err)
 	}
 	defer bpfObjects.Close()
+	fmt.Printf("%v\n", bpfObjects.XDPProg.VerifierLog)
 
 	ringbufReader, err := ringbuf.NewReader(bpfObjects.EventsMap)
 	if err != nil {

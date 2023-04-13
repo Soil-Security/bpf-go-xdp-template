@@ -214,11 +214,11 @@ int xdp_prog_func(struct xdp_md * ctx):
 ; int xdp_prog_func(struct xdp_md *ctx) { [file:./src/xdp.bpf.c line_num:19 line_col:0]
    0: (bf) r6 = r1
 ; event = (struct event *)bpf_ringbuf_reserve(&events, sizeof(struct event), 0); [file:./src/xdp.bpf.c line_num:22 line_col:27]
-   1: (18) r1 = map[id:68]
+   1: (18) r1 = map[id:39]
    3: (b7) r2 = 13
    4: (b7) r3 = 0
-   5: (85) call bpf_ringbuf_reserve#231472
-; if (!event) { [file:./src/xdp.bpf.c line_num:23 line_col:7]
+   5: (85) call bpf_ringbuf_reserve#217792
+; if (event == NULL) { [file:./src/xdp.bpf.c line_num:23 line_col:7]
    6: (15) if r0 == 0x0 goto pc+57
 ; void *data_end = (void *)(long)ctx->data_end; [file:./src/xdp.bpf.c line_num:40 line_col:39]
    7: (79) r3 = *(u64 *)(r6 +8)
@@ -297,16 +297,25 @@ int xdp_prog_func(struct xdp_md * ctx):
 ; bpf_ringbuf_submit(event, 0); [file:./src/xdp.bpf.c line_num:32 line_col:3]
   57: (bf) r1 = r0
   58: (b7) r2 = 0
-  59: (85) call bpf_ringbuf_submit#232416
+  59: (85) call bpf_ringbuf_submit#218720
   60: (05) goto pc+3
 ; bpf_ringbuf_discard(event, 0); [file:./src/xdp.bpf.c line_num:28 line_col:5]
   61: (bf) r1 = r0
   62: (b7) r2 = 0
-  63: (85) call bpf_ringbuf_discard#232528
+  63: (85) call bpf_ringbuf_discard#218832
 ; return XDP_PASS; [file:./src/xdp.bpf.c line_num:35 line_col:3]
   64: (b7) r0 = 2
   65: (95) exit
 ```
+
+``` console
+# bpftool prog dump xlated name xdp_prog_func visual > out.dot
+```
+```
+$ dot -Tpng out.dot > out.png
+```
+
+![](README/control-flow.png)
 
 [libbpf/libbpf]: https://github.com/libbpf/libbpf
 [libbpf/libbpf-bootstrap]: https://github.com/libbpf/libbpf-bootstrap

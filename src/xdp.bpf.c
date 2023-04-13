@@ -20,7 +20,7 @@ int xdp_prog_func(struct xdp_md *ctx) {
   struct event *event;
 
   event = (struct event *)bpf_ringbuf_reserve(&events, sizeof(struct event), 0);
-  if (!event) {
+  if (event == NULL) {
     goto done;
   }
 
