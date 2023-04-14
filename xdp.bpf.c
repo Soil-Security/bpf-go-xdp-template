@@ -172,7 +172,6 @@ static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
 
   e->ip_src = ip->saddr;
   e->ip_dst = ip->daddr;
-  e->ip_protocol = ip->protocol;
   e->udp_src = bpf_ntohs(udp->source);
   e->udp_dst = bpf_ntohs(udp->dest);
   e->dns_id = bpf_ntohs(dns->id);
