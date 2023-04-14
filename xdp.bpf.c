@@ -13,6 +13,47 @@ struct {
   __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
+static __always_inline void cursor_init(struct xdp_md *ctx, struct cursor *c) {
+  c->data = (void *)(long)ctx->data;
+  c->end = (void *)(long)ctx->data_end;
+}
+
+static __always_inline struct ethhdr *parse_ethhdr(struct cursor *c) {
+  if (c->data + sizeof(struct ethhdr) > c->end) {
+    return 0;
+  }
+  struct ethhdr *ret = c->data;
+  c->data += sizeof(struct ethhdr);
+  return ret;
+}
+
+static __always_inline struct iphdr *parse_iphdr(struct cursor *c) {
+  if (c->data + sizeof(struct iphdr) > c->end) {
+    return 0;
+  }
+  struct iphdr *ret = c->data;
+  c->data += sizeof(struct iphdr);
+  return ret;
+}
+
+static __always_inline struct udphdr *parse_udphdr(struct cursor *c) {
+  if (c->data + sizeof(struct udphdr) > c->end) {
+    return 0;
+  }
+  struct udphdr *ret = c->data;
+  c->data += sizeof(struct udphdr);
+  return ret;
+}
+
+static __always_inline struct dnshdr *parse_dnshdr(struct cursor *c) {
+  if (c->data + sizeof(struct dnshdr) > c->end) {
+    return 0;
+  }
+  struct dnshdr *ret = c->data;
+  c->data += sizeof(struct dnshdr);
+  return ret;
+}
+
 static __always_inline int parse_event(struct xdp_md *ctx, struct event *e);
 
 SEC("xdp")
@@ -36,40 +77,63 @@ done:
 }
 
 static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
-  void *data = (void *)(long)ctx->data;
-  void *data_end = (void *)(long)ctx->data_end;
+  struct cursor c = {.data = NULL, .end = NULL};
 
-  struct ethhdr *eth = (struct ethhdr *)data;
-  if (data + sizeof(struct ethhdr) > data_end) {
+  struct ethhdr *eth;
+  struct iphdr *ip;
+  struct udphdr *udp;
+  struct dnshdr *dns;
+
+  cursor_init(ctx, &c);
+
+  if (!(eth = parse_ethhdr(&c))) {
     return 0;
   }
-  data += sizeof(struct ethhdr);
 
   if (eth->h_proto != bpf_htons(ETH_P_IP)) {
     return 0;
   }
 
-  struct iphdr *ip = (struct iphdr *)data;
-  if (data + sizeof(struct iphdr) > data_end) {
+  if (!(ip = parse_iphdr(&c))) {
     return 0;
   }
-  data += sizeof(struct iphdr);
 
   if (ip->protocol != IPPROTO_UDP) {
     return 0;
   }
 
-  struct udphdr *udp = (struct udphdr *)data;
-  if (data + sizeof(struct udphdr) > data_end) {
+  if (!(udp = parse_udphdr(&c))) {
     return 0;
   }
-  data += sizeof(struct udphdr);
+
+  if (udp->source != bpf_htons(DNS_PORT)) {
+    return 0;
+  }
+
+  if (!(dns = parse_dnshdr(&c))) {
+    return 0;
+  }
+
+  if (dns->flags.qr != DNS_QR_RESPONSE) {
+    return 0;
+  }
+
+  if (dns->flags.opcode != DNS_OPCODE_QUERY) {
+    return 0;
+  }
+
+  if (dns->flags.rcode != DNS_RCODE_NO_ERROR) {
+    return 0;
+  }
 
   e->ip_src = ip->saddr;
   e->ip_dst = ip->daddr;
   e->ip_protocol = ip->protocol;
   e->udp_src = bpf_ntohs(udp->source);
   e->udp_dst = bpf_ntohs(udp->dest);
+  e->dns_id = bpf_ntohs(dns->id);
+  e->dns_qdcount = bpf_ntohs(dns->qdcount);
+  e->dns_ancount = bpf_ntohs(dns->ancount);
 
   return 1;
 }

@@ -72,7 +72,7 @@ func run(ctx context.Context) error {
 	}
 	defer ringbufReader.Close()
 
-	fmt.Println("Source\t\tDestination\t\tProtocol")
+	fmt.Println("Source\t\tDestination\t\tProtocol\t\tDNS.id")
 
 	go func() {
 		for {
@@ -126,10 +126,21 @@ func printEvent(raw []byte) {
 	case 6:
 		protocolStr = "TCP"
 	}
-	fmt.Printf("%v:%d\t%v:%d\t%v\n",
+	dnsId := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	offset += 2
+	dnsQnCount := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	offset += 2
+	dnsAnCount := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	offset += 2
+
+	fmt.Printf("%v:%d\t%v:%d\t%v\t%d\t%d\t%d\n",
 		srcIP.To4().String(), srcPort,
 		dstIP.To4().String(), dstPort,
-		protocolStr)
+		protocolStr,
+		dnsId,
+		dnsQnCount,
+		dnsAnCount,
+	)
 }
 
 var onlyOneSignalHandler = make(chan struct{})
