@@ -31,7 +31,9 @@ func main() {
 
 func run(ctx context.Context) error {
 	var ifaceName string
+	var hosts string
 	flag.StringVar(&ifaceName, "interface", "lo", "name of the network interface")
+	flag.StringVar(&hosts, "hosts", "", "host names to be tracked")
 	flag.Parse()
 
 	iface, err := net.InterfaceByName(ifaceName)
@@ -65,6 +67,11 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed loading and assigning BPF objects: %w", err)
 	}
 	defer bpfObjects.Close()
+
+	err = updateHostsMap(bpfObjects.HostsMap, strings.Split(hosts, ","))
+	if err != nil {
+		return err
+	}
 
 	ringbufReader, err := ringbuf.NewReader(bpfObjects.EventsMap)
 	if err != nil {
@@ -159,6 +166,38 @@ func setupHandler() context.Context {
 	return ctx
 }
 
+const DNSNameMax = 256
+
+func updateHostsMap(m *ebpf.Map, hosts []string) error {
+	var keys [][DNSNameMax]byte
+	var values []bool
+
+	for _, host := range hosts {
+		keys = append(keys, hostToDomainNameBytes(host))
+		values = append(values, true)
+	}
+
+	updateCount, err := m.BatchUpdate(keys, values, &ebpf.BatchOptions{
+		Flags: uint64(ebpf.UpdateAny),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed updating hosts in batch: %w", err)
+	}
+
+	if updateCount != len(hosts) {
+		return fmt.Errorf("failed updating all hosts in batch: expected: %d actual: %d", len(hosts), updateCount)
+	}
+
+	return nil
+}
+
+func hostToDomainNameBytes(host string) [DNSNameMax]byte {
+	buf := [DNSNameMax]byte{}
+	copy(buf[:], host)
+	return buf
+}
+
 type bpfObjects struct {
 	bpfPrograms
 	bpfLinks
@@ -195,11 +234,13 @@ func (l *bpfLinks) Close() error {
 
 type bpfMaps struct {
 	EventsMap *ebpf.Map `ebpf:"events"`
+	HostsMap  *ebpf.Map `ebpf:"hosts"`
 }
 
 func (m *bpfMaps) Close() error {
 	return bpfClose(
 		m.EventsMap,
+		m.HostsMap,
 	)
 }
 

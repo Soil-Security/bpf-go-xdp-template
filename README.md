@@ -24,7 +24,7 @@ $ make
 Run the loader program, which will attach the XDP program to the `eth0` interface.
 
 ``` console
-# ./xdp --interface=eth0
+# ./xdp --interface=eth0 --hosts="yahoo.com"
 Source          Destination             Protocol
 172.16.184.2:53 172.16.184.134:44240    UDP
 172.16.184.2:53 172.16.184.134:44240    UDP
@@ -66,7 +66,7 @@ $ make image
 ```
 ```
 $ docker run -it --rm --privileged --network=host --pid=host --cgroupns=host \
-    danielpacak/bpf-xdp-go-template --interface=eth0
+    danielpacak/bpf-xdp-go-template --interface=eth0 --hosts="yahoo.com"
 ```
 
 ### Iproute2

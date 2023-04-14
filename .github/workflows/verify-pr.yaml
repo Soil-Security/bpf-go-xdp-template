@@ -27,7 +27,7 @@ jobs:
 
     - name: Run
       run: |
-        sudo timeout --preserve-status 10s ./xdp --interface=lo &
+        sudo timeout --preserve-status 10s ./xdp --interface=lo --hosts="yahoo.com" &
         sleep 5s
         curl yahoo.com || true
 
@@ -37,7 +37,7 @@ jobs:
 
     - name: Run as Container
       run: |
-        docker run -d --rm --privileged --network=host --pid=host --cgroupns=host --name=bpf-xdp-go-template danielpacak/bpf-xdp-go-template --interface=lo
+        docker run -d --rm --privileged --network=host --pid=host --cgroupns=host --name=bpf-xdp-go-template danielpacak/bpf-xdp-go-template --interface=lo --hosts="yahoo.com"
         sleep 5s
         curl yahoo.com || true
 

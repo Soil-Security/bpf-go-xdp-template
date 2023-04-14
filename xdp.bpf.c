@@ -13,6 +13,20 @@ struct {
   __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, struct dnsqname);
+  __type(value, bool);
+  __uint(max_entries, 100);
+} hosts SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, u32);
+  __type(value, struct dnsqname);
+  __uint(max_entries, 1);
+} dns_qname_heap SEC(".maps");
+
 static __always_inline void cursor_init(struct xdp_md *ctx, struct cursor *c) {
   c->data = (void *)(long)ctx->data;
   c->end = (void *)(long)ctx->data_end;
@@ -52,6 +66,11 @@ static __always_inline struct dnshdr *parse_dnshdr(struct cursor *c) {
   struct dnshdr *ret = c->data;
   c->data += sizeof(struct dnshdr);
   return ret;
+}
+
+static __always_inline struct dnsqname *dnsqname_init() {
+  u32 key = 0;
+  return bpf_map_lookup_elem(&dns_qname_heap, &key);
 }
 
 static __always_inline int parse_qname(struct cursor *c, char *qname) {
@@ -164,11 +183,20 @@ static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
     return 0;
   }
 
-  if (!parse_qname(&c, &e->qname.name[0])) {
+  struct dnsqname *qname;
+  qname = dnsqname_init();
+  if (qname == NULL) {
     return 0;
   }
 
-  bpf_printk("qname: %s", e->qname.name);
+  if (!parse_qname(&c, &qname->name[0])) {
+    return 0;
+  }
+
+  bool *found = bpf_map_lookup_elem(&hosts, qname);
+  if (found == NULL) {
+    return 0;
+  }
 
   e->ip_src = ip->saddr;
   e->ip_dst = ip->daddr;
@@ -177,6 +205,7 @@ static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
   e->dns_id = bpf_ntohs(dns->id);
   e->dns_qdcount = bpf_ntohs(dns->qdcount);
   e->dns_ancount = bpf_ntohs(dns->ancount);
+  bpf_probe_read_kernel_str(&e->qname.name[0], DNS_NAME_MAX, &qname->name[0]);
 
   return 1;
 }
