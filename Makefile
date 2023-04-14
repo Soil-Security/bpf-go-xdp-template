@@ -5,17 +5,20 @@ CLANG ?= clang
 CLANG_FORMAT ?= clang-format
 LLVM_STRIP ?= llvm-strip
 GO ?= go
+DOCKER ?= docker
 
-LIBBPF_SRC := $(abspath ../libbpf/src)
+LIBBPF_SRC := $(abspath ./libbpf/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 
-BPFTOOL_SRC := $(abspath ../bpftool/src)
+BPFTOOL_SRC := $(abspath ./bpftool/src)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
 
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
 BTFFILE = /sys/kernel/btf/vmlinux
-VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := ./vmlinux/$(ARCH)/vmlinux.h
+
+IMAGE_TAG ?= latest
 
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
@@ -65,6 +68,10 @@ format:
 	$(CLANG_FORMAT) -i \
 	xdp.bpf.c \
 	xdp.h
+
+.PHONY: image
+image:
+	$(DOCKER) image build --no-cache -t docker.io/danielpacak/bpf-xdp-go-template:$(IMAGE_TAG) .
 
 # delete failed targets
 .DELETE_ON_ERROR:
