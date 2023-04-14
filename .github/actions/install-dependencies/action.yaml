@@ -8,8 +8,8 @@ runs:
     - name: Setup Go
       uses: actions/setup-go@c4a742cab115ed795e34d4513e2cf7d472deb55f
       with:
-        go-version-file: src/go.mod
-        cache-dependency-path: src/go.sum
+        go-version-file: go.mod
+        cache-dependency-path: go.sum
         cache: true
     - name: Install Compilers & Formatters
       shell: bash

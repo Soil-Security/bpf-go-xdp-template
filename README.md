@@ -18,13 +18,13 @@ $ git submodule update --init --recursive
 Compile BPF program and Go loader:
 
 ```
-$ make -C src
+$ make
 ```
 
 Run the loader program, which will attach the XDP program to the `eth0` interface.
 
 ``` console
-# ./src/xdp --interface=eth0
+# ./xdp --interface=eth0
 Source          Destination             Protocol
 172.16.184.2:53 172.16.184.134:44240    UDP
 172.16.184.2:53 172.16.184.134:44240    UDP
@@ -58,6 +58,16 @@ When you hit CTRL+C keys to stop the loader process, the XDP program will be det
 
 
 ## Using Alternative Loaders
+
+### Docker
+
+```
+$ make image
+```
+```
+$ docker run -it --rm --privileged --network=host --pid=host \
+    danielpacak/bpf-xdp-go-template --interface=eth0
+```
 
 ### Iproute2
 

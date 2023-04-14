@@ -7,7 +7,8 @@ concurrency:
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches:
+    - main
 
 jobs:
   verify:
@@ -20,11 +21,28 @@ jobs:
     - name: Install Build Dependencies
       uses: ./.github/actions/install-dependencies
 
-    - name: Compile App
+    - name: Compile
       run: |
-        make -C src
+        make
 
-    - name: Run App
+    - name: Run
       run: |
-        ip a
-        sudo timeout --preserve-status 5s ./src/xdp --interface=eth0
+        sudo timeout --preserve-status 10s ./xdp --interface=lo &
+        sleep 5s
+        curl yahoo.com || true
+
+    - name: Build Image
+      run: |
+        make image
+
+    - name: Run as Container
+      run: |
+        docker run -d --rm --privileged --network=host --pid=host --cgroupns=host --name=bpf-xdp-go-template danielpacak/bpf-xdp-go-template --interface=lo
+        sleep 5s
+        curl yahoo.com || true
+
+    - name: Stop Container
+      run: |
+        ip address list
+        docker logs bpf-xdp-go-template
+        docker stop bpf-xdp-go-template
