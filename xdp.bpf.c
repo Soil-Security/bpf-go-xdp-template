@@ -54,6 +54,44 @@ static __always_inline struct dnshdr *parse_dnshdr(struct cursor *c) {
   return ret;
 }
 
+static __always_inline int parse_qname(struct cursor *c, char *qname) {
+  __builtin_memset(qname, 0, DNS_NAME_MAX);
+  __u8 label_cursor = 0;
+
+  // The loop starts with '-1', because the first char will be '.'
+  // and we want to bypass it, check (i == -1) statement for details.
+  for (__s16 i = -1; i < 128; i++, c->data++) {
+    if (c->data + 1 > c->end) {
+      return -1; // packet is too short.
+    }
+
+    if (*(__u8 *)c->data == 0) {
+      c->data += sizeof(__u8);
+      break; // end of domain name.
+    }
+
+    if (label_cursor == 0) {
+      // the cursor is on a label length byte.
+      __u8 new_label_length = *(__u8 *)c->data;
+      if (c->data + new_label_length > c->end) {
+        return -1; // packet is too short.
+      }
+      label_cursor = new_label_length;
+      if (i == -1) {
+        // This is the first label, no need to set '.'
+        continue;
+      }
+      qname[i] = '.';
+      continue;
+    }
+
+    label_cursor--;
+    qname[i] = *(char *)c->data;
+  }
+
+  return 1;
+}
+
 static __always_inline int parse_event(struct xdp_md *ctx, struct event *e);
 
 SEC("xdp")
@@ -125,6 +163,12 @@ static __always_inline int parse_event(struct xdp_md *ctx, struct event *e) {
   if (dns->flags.rcode != DNS_RCODE_NO_ERROR) {
     return 0;
   }
+
+  if (!parse_qname(&c, &e->qname.name[0])) {
+    return 0;
+  }
+
+  bpf_printk("qname: %s", e->qname.name);
 
   e->ip_src = ip->saddr;
   e->ip_dst = ip->daddr;

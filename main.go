@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -133,13 +134,19 @@ func printEvent(raw []byte) {
 	dnsAnCount := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
 	offset += 2
 
-	fmt.Printf("%v:%d\t%v:%d\t%v\t%d\t%d\t%d\n",
+	var qname [256]uint8
+	_ = copy(qname[:], raw[offset:offset+256])
+	qnameStr := unix.ByteSliceToString(qname[:])
+	offset += 256
+
+	fmt.Printf("%v:%d\t%v:%d\t%v\t%d\t%d\t%d\t%q\n",
 		srcIP.To4().String(), srcPort,
 		dstIP.To4().String(), dstPort,
 		protocolStr,
 		dnsId,
 		dnsQnCount,
 		dnsAnCount,
+		qnameStr,
 	)
 }
 
