@@ -100,13 +100,14 @@ func run(ctx context.Context) error {
 		}
 	}()
 
-	bpfObjects.XDPLink, err = link.AttachXDP(link.XDPOptions{
+	link, err := link.AttachXDP(link.XDPOptions{
 		Program:   bpfObjects.XDPProg,
 		Interface: iface.Index,
 	})
 	if err != nil {
 		return err
 	}
+	defer link.Close()
 
 	<-ctx.Done()
 
@@ -200,14 +201,12 @@ func hostToDomainNameBytes(host string) [DNSNameMax]byte {
 
 type bpfObjects struct {
 	bpfPrograms
-	bpfLinks
 	bpfMaps
 }
 
 func (o *bpfObjects) Close() error {
 	return bpfClose(
 		&o.bpfPrograms,
-		&o.bpfLinks,
 		&o.bpfMaps,
 	)
 }
@@ -219,16 +218,6 @@ type bpfPrograms struct {
 func (p *bpfPrograms) Close() error {
 	return bpfClose(
 		p.XDPProg,
-	)
-}
-
-type bpfLinks struct {
-	XDPLink link.Link
-}
-
-func (l *bpfLinks) Close() error {
-	return bpfClose(
-		l.XDPLink,
 	)
 }
 
