@@ -6,25 +6,32 @@ access BPF maps, etc.
 
 ## Usage
 
-Create a new repository from this template by clicking the **Use this template** button in the GitHub interface.
-Once it's done, clone and change current directory to the cloned repository:
+Create a new repository `$owner/$repo` from this template by clicking the **Use this template** button in the GitHub
+interface. Once it's done, clone and change current directory to the cloned repository:
 
 ```
 $ git clone https://github.com/$owner/$repo.git
 $ cd $repo
+```
+
+Alternatively, just clone this template repository:
+
+```
+$ git clone https://github.com/danielpacak/bpf-xdp-go-template.git
+$ cd bpf-xdp-go-template
+```
+
+Init git submodules and compile BPF program and Go loader:
+
+```
 $ git submodule update --init --recursive
-```
-
-Compile BPF program and Go loader:
-
-```
 $ make
 ```
 
 Run the loader program, which will attach the XDP program to the `eth0` interface.
 
 ``` console
-# ./xdp --interface=eth0 --hosts="yahoo.com"
+# ./xdp --interface=eth0 --hosts="yahoo.com" --bpf-file="xdp.bpf.o"
 Source          Destination             Protocol
 172.16.184.2:53 172.16.184.134:44240    UDP
 172.16.184.2:53 172.16.184.134:44240    UDP
@@ -56,7 +63,6 @@ for developers who want to write and run XDP programs without having the capabil
 
 When you hit CTRL+C keys to stop the loader process, the XDP program will be detached from the `eth0` interface.
 
-
 ## Using Alternative Loaders
 
 ### Docker
@@ -66,7 +72,7 @@ $ make image
 ```
 ```
 $ docker run -it --rm --privileged --network=host --pid=host --cgroupns=host \
-    danielpacak/bpf-xdp-go-template --interface=eth0 --hosts="yahoo.com"
+    danielpacak/bpf-xdp-go-template --interface=eth0 --hosts="yahoo.com" --bpf-file="xdp.bpf.o"
 ```
 
 ### Iproute2
@@ -79,7 +85,7 @@ device configuration.
 The syntax to load the XDP program is simple.
 
 ```
-# ip link set dev eth0 xdp obj src/xdp.bpf.o program xdp_prog_func verbose
+# ip link set dev eth0 xdp obj xdp.bpf.o program xdp_prog_func verbose
 ```
 
 To detach the `xdp_prog_func` program and turn off XDP for the device.
@@ -93,7 +99,7 @@ To detach the `xdp_prog_func` program and turn off XDP for the device.
 Use bpftool to load and attach XDP programs.
 
 ```
-# bpftool prog load src/xdp.bpf.o /sys/fs/bpf/xdp_prog_func
+# bpftool prog load xdp.bpf.o /sys/fs/bpf/xdp_prog_func
 ```
 
 You can further inspect the program with the `btftool` command.
@@ -133,16 +139,16 @@ The `file` utility shows that `xdp.bpf.o` is an ELF (Executable and Linkable For
 code, for a 64-bit platform with LSB (lowest significant bit) architecture.
 
 ``` console
-$ file src/xdp.bpf.o
-src/xdp.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped
+$ file xdp.bpf.o
+xdp.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped
 ```
 
 You can further inspect this object with `llvm-objdump` to see the eBPF instructions.
 
 ``` console
-$ llvm-objdump -d src/xdp.bpf.o
+$ llvm-objdump -d xdp.bpf.o
 
-src/xdp.bpf.o:	file format elf64-bpf
+xdp.bpf.o:	file format elf64-bpf
 
 Disassembly of section xdp:
 

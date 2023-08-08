@@ -32,26 +32,28 @@ func main() {
 func run(ctx context.Context) error {
 	var ifaceName string
 	var hosts string
-	flag.StringVar(&ifaceName, "interface", "lo", "name of the network interface")
-	flag.StringVar(&hosts, "hosts", "", "host names to be tracked")
-	flag.Parse()
-
-	iface, err := net.InterfaceByName(ifaceName)
-	if err != nil {
-		return fmt.Errorf("lookup network interface %q: %s", ifaceName, err)
-	}
-
-	var bpfObjects bpfObjects
 
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	bpfObjectFile := path.Join(filepath.Dir(executable), "xdp.bpf.o")
+	bpfFile := path.Join(filepath.Dir(executable), "xdp.bpf.o")
 
-	spec, err := ebpf.LoadCollectionSpec(bpfObjectFile)
+	flag.StringVar(&ifaceName, "interface", "lo", "name of the network interface")
+	flag.StringVar(&hosts, "hosts", "", "host names to be tracked")
+	flag.StringVar(&bpfFile, "bpf-file", bpfFile, "path to BPF object file")
+	flag.Parse()
+
+	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
-		return err
+		return fmt.Errorf("unrecognized network interface %q: %s", ifaceName, err)
+	}
+
+	var bpfObjects bpfObjects
+
+	spec, err := ebpf.LoadCollectionSpec(bpfFile)
+	if err != nil {
+		return fmt.Errorf("failed loading BPF object file: %w", err)
 	}
 
 	err = spec.LoadAndAssign(&bpfObjects, &ebpf.CollectionOptions{
@@ -64,7 +66,7 @@ func run(ctx context.Context) error {
 		if errors.As(err, &verifierError) {
 			fmt.Fprintln(os.Stderr, strings.Join(verifierError.Log, "\n"))
 		}
-		return fmt.Errorf("failed loading and assigning BPF objects: %w", err)
+		return fmt.Errorf("failed loading BPF objects: %w", err)
 	}
 	defer bpfObjects.Close()
 
@@ -95,7 +97,7 @@ func run(ctx context.Context) error {
 					continue
 				}
 
-				printEvent(record.RawSample)
+				printEvent(spec.ByteOrder, record.RawSample)
 			}
 		}
 	}()
@@ -105,7 +107,7 @@ func run(ctx context.Context) error {
 		Interface: iface.Index,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed linking XDP program: %w", err)
 	}
 	defer link.Close()
 
@@ -114,22 +116,22 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func printEvent(raw []byte) {
+func printEvent(byteOrder binary.ByteOrder, raw []byte) {
 	offset := 0
 	srcIP := net.IP(raw[offset : offset+4])
 	offset += 4
 	dstIP := net.IP(raw[offset : offset+4])
 	offset += 4
-	srcPort := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	srcPort := (int)(byteOrder.Uint16(raw[offset : offset+2]))
 	offset += 2
-	dstPort := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	dstPort := (int)(byteOrder.Uint16(raw[offset : offset+2]))
 	offset += 2
 
-	dnsId := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	dnsId := (int)(byteOrder.Uint16(raw[offset : offset+2]))
 	offset += 2
-	dnsQnCount := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	dnsQnCount := (int)(byteOrder.Uint16(raw[offset : offset+2]))
 	offset += 2
-	dnsAnCount := (int)(binary.LittleEndian.Uint16(raw[offset : offset+2]))
+	dnsAnCount := (int)(byteOrder.Uint16(raw[offset : offset+2]))
 	offset += 2
 
 	var qname [256]uint8
