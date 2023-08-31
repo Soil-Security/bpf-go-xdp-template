@@ -1,8 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/binary"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,16 +11,17 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
-	"golang.org/x/sys/unix"
+	bpfevents "github.com/danielpacak/bpf-events"
 )
+
+//go:embed xdp.bpf.o
+var bpfELFBytes []byte
 
 func main() {
 	if err := run(setupHandler()); err != nil {
@@ -31,17 +33,8 @@ func main() {
 
 func run(ctx context.Context) error {
 	var ifaceName string
-	var hosts string
-
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	bpfFile := path.Join(filepath.Dir(executable), "xdp.bpf.o")
 
 	flag.StringVar(&ifaceName, "interface", "lo", "name of the network interface")
-	flag.StringVar(&hosts, "hosts", "", "host names to be tracked")
-	flag.StringVar(&bpfFile, "bpf-file", bpfFile, "path to BPF object file")
 	flag.Parse()
 
 	iface, err := net.InterfaceByName(ifaceName)
@@ -51,10 +44,11 @@ func run(ctx context.Context) error {
 
 	var bpfObjects bpfObjects
 
-	spec, err := ebpf.LoadCollectionSpec(bpfFile)
+	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(bpfELFBytes))
 	if err != nil {
 		return fmt.Errorf("failed loading BPF object file: %w", err)
 	}
+	decoder := &bpfevents.Decoder{ByteOrder: spec.ByteOrder}
 
 	err = spec.LoadAndAssign(&bpfObjects, &ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
@@ -70,18 +64,13 @@ func run(ctx context.Context) error {
 	}
 	defer bpfObjects.Close()
 
-	err = updateHostsMap(bpfObjects.HostsMap, strings.Split(hosts, ","))
-	if err != nil {
-		return err
-	}
-
 	ringbufReader, err := ringbuf.NewReader(bpfObjects.EventsMap)
 	if err != nil {
 		return err
 	}
 	defer ringbufReader.Close()
 
-	fmt.Println("Source\t\tDestination\t\tDNS.id")
+	fmt.Println("Source\t\tDestination")
 
 	go func() {
 		for {
@@ -97,7 +86,11 @@ func run(ctx context.Context) error {
 					continue
 				}
 
-				printEvent(spec.ByteOrder, record.RawSample)
+				err = parseAndPrintEvent(record.RawSample, decoder)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error: failed parsing and printing event: %v\n", err)
+					continue
+				}
 			}
 		}
 	}()
@@ -116,37 +109,53 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func printEvent(byteOrder binary.ByteOrder, raw []byte) {
-	offset := 0
-	srcIP := net.IP(raw[offset : offset+4])
-	offset += 4
-	dstIP := net.IP(raw[offset : offset+4])
-	offset += 4
-	srcPort := (int)(byteOrder.Uint16(raw[offset : offset+2]))
-	offset += 2
-	dstPort := (int)(byteOrder.Uint16(raw[offset : offset+2]))
-	offset += 2
+type event struct {
+	SrcIP   net.IP
+	SrcPort int
+	DstIP   net.IP
+	DstPort int
+}
 
-	dnsId := (int)(byteOrder.Uint16(raw[offset : offset+2]))
-	offset += 2
-	dnsQnCount := (int)(byteOrder.Uint16(raw[offset : offset+2]))
-	offset += 2
-	dnsAnCount := (int)(byteOrder.Uint16(raw[offset : offset+2]))
-	offset += 2
+func (e *event) unpack(buf []byte, decoder *bpfevents.Decoder) error {
+	var off = 0
+	var err error
 
-	var qname [256]uint8
-	_ = copy(qname[:], raw[offset:offset+256])
-	qnameStr := unix.ByteSliceToString(qname[:])
-	offset += 256
+	e.SrcIP, off, err = decoder.IPv4(buf, off)
+	if err != nil {
+		return err
+	}
 
-	fmt.Printf("%v:%d\t%v:%d\t%d\t%d\t%d\t%q\n",
-		srcIP.To4().String(), srcPort,
-		dstIP.To4().String(), dstPort,
-		dnsId,
-		dnsQnCount,
-		dnsAnCount,
-		qnameStr,
+	e.DstIP, off, err = decoder.IPv4(buf, off)
+	if err != nil {
+		return err
+	}
+
+	e.SrcPort, off, err = decoder.Uint16AsInt(buf, off)
+	if err != nil {
+		return err
+	}
+
+	e.DstPort, _, err = decoder.Uint16AsInt(buf, off)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseAndPrintEvent(buf []byte, decoder *bpfevents.Decoder) error {
+	e := event{}
+	err := e.unpack(buf, decoder)
+	if err != nil {
+		return fmt.Errorf("failed unpacking event: %w", err)
+	}
+
+	fmt.Printf("%v:%d\t%v:%d\n",
+		e.SrcIP.To4().String(), e.SrcPort,
+		e.DstIP.To4().String(), e.DstPort,
 	)
+
+	return nil
 }
 
 var onlyOneSignalHandler = make(chan struct{})
@@ -167,38 +176,6 @@ func setupHandler() context.Context {
 	}()
 
 	return ctx
-}
-
-const DNSNameMax = 256
-
-func updateHostsMap(m *ebpf.Map, hosts []string) error {
-	var keys [][DNSNameMax]byte
-	var values []bool
-
-	for _, host := range hosts {
-		keys = append(keys, hostToDomainNameBytes(host))
-		values = append(values, true)
-	}
-
-	updateCount, err := m.BatchUpdate(keys, values, &ebpf.BatchOptions{
-		Flags: uint64(ebpf.UpdateAny),
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed updating hosts in batch: %w", err)
-	}
-
-	if updateCount != len(hosts) {
-		return fmt.Errorf("failed updating all hosts in batch: expected: %d actual: %d", len(hosts), updateCount)
-	}
-
-	return nil
-}
-
-func hostToDomainNameBytes(host string) [DNSNameMax]byte {
-	buf := [DNSNameMax]byte{}
-	copy(buf[:], host)
-	return buf
 }
 
 type bpfObjects struct {
@@ -225,13 +202,11 @@ func (p *bpfPrograms) Close() error {
 
 type bpfMaps struct {
 	EventsMap *ebpf.Map `ebpf:"events"`
-	HostsMap  *ebpf.Map `ebpf:"hosts"`
 }
 
 func (m *bpfMaps) Close() error {
 	return bpfClose(
 		m.EventsMap,
-		m.HostsMap,
 	)
 }
 

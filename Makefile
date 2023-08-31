@@ -18,8 +18,6 @@ ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/')
 BTFFILE = /sys/kernel/btf/vmlinux
 VMLINUX := ./vmlinux/$(ARCH)/vmlinux.h
 
-IMAGE_TAG ?= latest
-
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
@@ -68,10 +66,6 @@ format:
 	$(CLANG_FORMAT) -i \
 	xdp.bpf.c \
 	xdp.h
-
-.PHONY: image
-image:
-	$(DOCKER) image build --no-cache -t docker.io/danielpacak/bpf-xdp-go-template:$(IMAGE_TAG) .
 
 # delete failed targets
 .DELETE_ON_ERROR:

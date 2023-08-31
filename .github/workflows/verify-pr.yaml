@@ -1,48 +1,27 @@
 ---
 name: Verify Pull Request
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 on:
   pull_request:
     branches:
     - main
-
 jobs:
   verify:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
+    - name: Checkout Code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       with:
         submodules: recursive
-
-    - name: Install Build Dependencies
+    - name: Install Dependencies
       uses: ./.github/actions/install-dependencies
-
     - name: Compile
       run: |
         make
-
     - name: Run
       run: |
-        sudo timeout --preserve-status 10s ./xdp --interface=lo --hosts="yahoo.com" &
+        sudo timeout --preserve-status 10s ./xdp --interface=lo &
         sleep 5s
         curl yahoo.com || true
-
-    - name: Build Image
-      run: |
-        make image
-
-    - name: Run as Container
-      run: |
-        docker run -d --rm --privileged --network=host --pid=host --cgroupns=host --name=bpf-xdp-go-template danielpacak/bpf-xdp-go-template --interface=lo --hosts="yahoo.com"
-        sleep 5s
-        curl yahoo.com || true
-
-    - name: Stop Container
-      run: |
-        ip address list
-        docker logs bpf-xdp-go-template
-        docker stop bpf-xdp-go-template

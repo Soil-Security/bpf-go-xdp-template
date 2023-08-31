@@ -1,8 +1,7 @@
 # bpf-xdp-go-template
 
 A GitHub template repository with the scaffolding for a XDP program developed with [libbpf/libbpf].
-The loader is written in Go and is using the [cilium/ebpf] library to manage BPF objects, i.e. load BPF programs,
-access BPF maps, etc.
+The loader is written in Go and is using the [cilium/ebpf] library to manage BPF objects.
 
 ## Usage
 
@@ -10,35 +9,33 @@ Create a new repository `$owner/$repo` from this template by clicking the **Use 
 interface. Once it's done, clone and change current directory to the cloned repository:
 
 ```
-$ git clone https://github.com/$owner/$repo.git
+$ git clone --recurse-submodules https://github.com/$owner/$repo.git
 $ cd $repo
 ```
 
 Alternatively, just clone this template repository:
 
 ```
-$ git clone https://github.com/danielpacak/bpf-xdp-go-template.git
+$ git clone --recurse-submodules https://github.com/danielpacak/bpf-xdp-go-template.git
 $ cd bpf-xdp-go-template
 ```
 
-Init git submodules and compile BPF program and Go loader:
+Compile BPF programs and Go loader:
 
 ```
-$ git submodule update --init --recursive
 $ make
 ```
 
 Run the loader program, which will attach the XDP program to the `eth0` interface.
 
 ``` console
-# ./xdp --interface=eth0 --hosts="yahoo.com" --bpf-file="xdp.bpf.o"
+# ./xdp --interface=eth0"
 Source          Destination             Protocol
 172.16.184.2:53 172.16.184.134:44240    UDP
 172.16.184.2:53 172.16.184.134:44240    UDP
 172.16.184.2:53 172.16.184.134:40356    UDP
 172.16.184.2:53 172.16.184.134:40356    UDP
 172.16.184.2:53 172.16.184.134:52815    UDP
-_
 ```
 
 If everything is fine, you can start modifying the scaffolding to adjust the XDP program to your needs.
@@ -72,7 +69,7 @@ $ make image
 ```
 ```
 $ docker run -it --rm --privileged --network=host --pid=host --cgroupns=host \
-    danielpacak/bpf-xdp-go-template --interface=eth0 --hosts="yahoo.com" --bpf-file="xdp.bpf.o"
+    danielpacak/bpf-xdp-go-template --interface=eth0
 ```
 
 ### Iproute2
